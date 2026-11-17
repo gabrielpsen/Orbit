@@ -1,0 +1,157 @@
+name: orbit
+services:
+  postgres:
+    image: postgres:18.7-alpine
+    environment:
+      POSTGRES_DB: orbit
+      POSTGRES_USER: orbit
+      POSTGRES_PASSWORD: ${ORBIT_DB_PASSWORD:?Set it in .env (see the README)}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbit -d orbit"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.10.3-alpine
+    environment:
+      REDISCLI_AUTH: ${ORBIT_REDIS_PASSWORD:?Set it in .env (see the README)}
+    command: ["redis-server", "--appendonly", "yes", "--protected-mode", "yes", "--requirepass", "${ORBIT_REDIS_PASSWORD:?Set it in .env (see the README)}"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  orbit-scheduler:
+    build: .
+    environment:
+      ORBIT_ENV: ${ORBIT_ENV:-development}
+      ORBIT_ROLE: scheduler
+      ORBIT_GRPC_PORT: 9090
+      ORBIT_API_TOKEN: ${ORBIT_API_TOKEN:?Set it in .env (see the README)}
+      ORBIT_WORKER_TOKEN: ${ORBIT_WORKER_TOKEN:?Set it in .env (see the README)}
+      ORBIT_TENANT_TOKENS: ${ORBIT_TENANT_TOKENS:-}
+      ORBIT_ADMIN_USERNAME: ${ORBIT_ADMIN_USERNAME:-admin}
+      ORBIT_ADMIN_PASSWORD: ${ORBIT_ADMIN_PASSWORD:-}
+      ORBIT_PROMETHEUS_URL: ${ORBIT_PROMETHEUS_URL-http://localhost:9091}
+      ORBIT_GRAFANA_URL: ${ORBIT_GRAFANA_URL-http://localhost:3000}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/orbit
+      SPRING_DATASOURCE_USERNAME: orbit
+      SPRING_DATASOURCE_PASSWORD: ${ORBIT_DB_PASSWORD:?Set it in .env (see the README)}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${ORBIT_REDIS_PASSWORD:?Set it in .env (see the README)}
+      OTEL_SERVICE_NAME: orbit-scheduler
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 1.50
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  orbit-worker:
+    build: .
+    environment:
+      ORBIT_ENV: ${ORBIT_ENV:-development}
+      ORBIT_ROLE: worker
+      ORBIT_WORKER_TOKEN: ${ORBIT_WORKER_TOKEN:?Set it in .env (see the README)}
+      ORBIT_WORKER_ID: ${ORBIT_WORKER_ID:-}
+      MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: health,info
+      SERVER_PORT: 8081
+      ORBIT_SCHEDULER_HOST: orbit-scheduler
+      ORBIT_SCHEDULER_GRPC_PORT: 9090
+      ORBIT_WORKER_CONCURRENCY: 8
+      ORBIT_WORKER_MAX_RUNTIME_SECONDS: 900
+      OTEL_SERVICE_NAME: orbit-worker
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+    depends_on:
+      orbit-scheduler:
+        condition: service_started
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 1g
+    cpus: 1.50
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  prometheus:
+    image: prom/prometheus:v3.16.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.path=/prometheus"]
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    secrets:
+      - orbit_api_token
+    ports:
+      - "127.0.0.1:9091:9090"
+    depends_on:
+      - orbit-scheduler
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.3.1
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${ORBIT_GRAFANA_PASSWORD:?Set it in .env (see the README)}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.165.0
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./observability/otel-collector.yml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - "127.0.0.1:4317:4317"
+      - "127.0.0.1:4318:4318"
+    restart: unless-stopped
+
+secrets:
+  orbit_api_token:
+    environment: ORBIT_API_TOKEN
+
+volumes:
+  postgres-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:

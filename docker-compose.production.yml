@@ -1,0 +1,21 @@
+# Mutual TLS: docker compose -f docker-compose.yml -f docker-compose.production.yml up -d
+services:
+  orbit-scheduler:
+    environment:
+      ORBIT_GRPC_TLS_CA: /run/orbit/tls/ca.crt
+      ORBIT_GRPC_TLS_CERT: /run/orbit/tls/server.crt
+      ORBIT_GRPC_TLS_KEY: /run/orbit/tls/server.key
+    volumes:
+      - ./tls/ca.crt:/run/orbit/tls/ca.crt:ro
+      - ./tls/server.crt:/run/orbit/tls/server.crt:ro
+      - ./tls/server.key:/run/orbit/tls/server.key:ro
+
+  orbit-worker:
+    environment:
+      ORBIT_GRPC_TLS_CA: /run/orbit/tls/ca.crt
+      ORBIT_GRPC_TLS_CERT: /run/orbit/tls/worker.crt
+      ORBIT_GRPC_TLS_KEY: /run/orbit/tls/worker.key
+    volumes:
+      - ./tls/ca.crt:/run/orbit/tls/ca.crt:ro
+      - ./tls/worker.crt:/run/orbit/tls/worker.crt:ro
+      - ./tls/worker.key:/run/orbit/tls/worker.key:ro

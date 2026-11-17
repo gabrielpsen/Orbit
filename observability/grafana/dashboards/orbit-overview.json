@@ -1,0 +1,18 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "graphTooltip": 1,
+  "panels": [
+    {"type":"timeseries","title":"Job claims / second","gridPos":{"h":8,"w":12,"x":0,"y":0},"targets":[{"expr":"rate(orbit_jobs_claimed_total[5m])","legendFormat":"claims/s"}],"fieldConfig":{"defaults":{"unit":"ops"},"overrides":[]},"datasource":{"type":"prometheus","uid":"prometheus"}},
+    {"type":"timeseries","title":"Successful jobs / second","gridPos":{"h":8,"w":12,"x":12,"y":0},"targets":[{"expr":"rate(orbit_jobs_succeeded_total[5m])","legendFormat":"succeeded/s"}],"fieldConfig":{"defaults":{"unit":"ops"},"overrides":[]},"datasource":{"type":"prometheus","uid":"prometheus"}},
+    {"type":"timeseries","title":"Retries / second","gridPos":{"h":8,"w":12,"x":0,"y":8},"targets":[{"expr":"rate(orbit_jobs_retried_total[5m])","legendFormat":"retried/s"}],"fieldConfig":{"defaults":{"unit":"ops"},"overrides":[]},"datasource":{"type":"prometheus","uid":"prometheus"}},
+    {"type":"timeseries","title":"Lease recoveries / second","gridPos":{"h":8,"w":12,"x":12,"y":8},"targets":[{"expr":"rate(orbit_jobs_recovered_total[5m])","legendFormat":"recovered/s"}],"fieldConfig":{"defaults":{"unit":"ops"},"overrides":[]},"datasource":{"type":"prometheus","uid":"prometheus"}}
+  ],
+  "schemaVersion": 39,
+  "tags": ["orbit"],
+  "templating": {"list": []},
+  "time": {"from":"now-6h","to":"now"},
+  "title":"Orbit Overview",
+  "uid":"orbit-overview",
+  "version":1
+}

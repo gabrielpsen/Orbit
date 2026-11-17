@@ -1,0 +1,51 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "dev.orbit.grpc.proto";
+option java_outer_classname = "OrbitProtocol";
+
+package orbit.v1;
+
+service OrbitControl {
+  rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc PollJob(PollJobRequest) returns (PollJobResponse);
+  rpc CompleteJob(CompleteJobRequest) returns (CompleteJobResponse);
+  rpc RenewJobLease(RenewJobLeaseRequest) returns (RenewJobLeaseResponse);
+}
+
+message RegisterWorkerRequest {
+  string worker_id = 1;
+  string hostname = 2;
+  int32 max_concurrency = 3;
+  repeated string capabilities = 4;
+}
+message RegisterWorkerResponse { bool accepted = 1; int32 heartbeat_interval_seconds = 2; }
+message HeartbeatRequest { string worker_id = 1; int32 active_jobs = 2; }
+message HeartbeatResponse { bool accepted = 1; }
+message PollJobRequest { string worker_id = 1; }
+message PollJobResponse {
+  bool has_job = 1;
+  string job_id = 2;
+  string tenant_id = 3;
+  string task_type = 4;
+  string payload_json = 5;
+  int32 attempt = 6;
+  int32 max_attempts = 7;
+  string lease_token = 8;
+}
+message CompleteJobRequest {
+  string worker_id = 1;
+  string job_id = 2;
+  bool success = 3;
+  string output_json = 4;
+  string error_message = 5;
+  string lease_token = 6;
+}
+message CompleteJobResponse { bool accepted = 1; string state = 2; }
+message RenewJobLeaseRequest {
+  string worker_id = 1;
+  string job_id = 2;
+  string lease_token = 3;
+}
+message RenewJobLeaseResponse { bool accepted = 1; }
